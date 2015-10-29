@@ -34,7 +34,7 @@ module Mondrian
         end
       end
 
-      AXIS_ALIASES = %w(columns rows pages sections chapters)
+      AXIS_ALIASES = %w(columns rows pages chapters sections)
       AXIS_ALIASES.each_with_index do |axis, i|
         class_eval <<-RUBY, __FILE__, __LINE__ + 1
           def #{axis}(*axis_members)
@@ -316,7 +316,7 @@ module Mondrian
           when :nonempty
             "NON EMPTY #{members_to_mdx(members[1])}"
           when :distinct
-            "DISTINCT (#{members_to_mdx(members[1])})"
+            "DISTINCT(#{members_to_mdx(members[1])})"
           when :filter
             as_alias = members[3] ? " AS #{members[3]}" : nil
             "FILTER(#{members_to_mdx(members[1])}#{as_alias}, #{members[2]})"
