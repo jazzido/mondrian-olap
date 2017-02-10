@@ -1,0 +1,47 @@
+environment:
+  JRUBY_OPTS: "--dev -J-Xmx1024M"
+  matrix:
+    - JRUBY_VERSION: "1.7.26"
+    - JRUBY_VERSION: "9.1.6.0"
+
+configuration:
+  - jdk1.7.0
+  - jdk1.8.0
+
+services:
+  - mssql2012sp1
+
+build: off
+
+branches:
+  only:
+    - master
+
+install:
+  - ps: secedit /export /cfg c:\secpol.cfg
+  - ps: (gc C:\secpol.cfg).replace("PasswordComplexity = 1", "PasswordComplexity = 0").replace("MinimumPasswordLength = 8", "MinimumPasswordLength = 0") | Out-File C:\secpol.cfg
+  - ps: secedit /configure /db c:\windows\security\local.sdb /cfg c:\secpol.cfg /areas SECURITYPOLICY
+  - ps: rm -force c:\secpol.cfg -confirm:$false
+  - appveyor DownloadFile https://s3.amazonaws.com/jruby.org/downloads/%JRUBY_VERSION%/jruby-bin-%JRUBY_VERSION%.zip
+  - 7z x jruby-bin-%JRUBY_VERSION%.zip -y > nul
+  - del jruby-bin-%JRUBY_VERSION%.zip
+  - appveyor DownloadFile https://download.microsoft.com/download/0/2/A/02AAE597-3865-456C-AE7F-613F99F850A8/enu/sqljdbc_6.0.8112.100_enu.exe
+  - 7z x sqljdbc_6.0.8112.100_enu.exe -y > nul
+  - copy sqljdbc_6.0\enu\jre7\sqljdbc41.jar spec\support\jars\
+  - SET JAVA_HOME=C:\Program Files\Java\%CONFIGURATION%
+  - SET PATH=C:\projects\mondrian-olap\jruby-%JRUBY_VERSION%\bin;%JAVA_HOME%\bin;%PATH%
+  - gem install bundler
+  - bundle install --jobs=1 --retry=3
+
+before_test:
+  - jruby -v
+  - gem -v
+  - bundle -v
+  - sqlcmd -S "(local)" -U "sa" -P "Password12!" -Q "CREATE LOGIN mondrian_test WITH PASSWORD = 'mondrian_test'"
+  - sqlcmd -S "(local)" -U "sa" -P "Password12!" -Q "ALTER SERVER ROLE [dbcreator] ADD MEMBER [mondrian_test]"
+  - sqlcmd -S "(local)" -U "mondrian_test" -P "mondrian_test" -Q "CREATE DATABASE mondrian_test"
+  - bundle exec rake db:create_data MONDRIAN_DRIVER=mssql
+
+test_script:
+  - bundle exec rake spec MONDRIAN_DRIVER=mssql
+  - bundle exec rake spec MONDRIAN_DRIVER=sqlserver
